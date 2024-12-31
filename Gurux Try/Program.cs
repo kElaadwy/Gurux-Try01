@@ -12,8 +12,7 @@ internal class Program
     {
         // Initialize GXDLMSClient with necessary parameters
         // Logical name referencing, client and server addresses, authentication level, and password.
-        //GXDLMSClient client = new GXDLMSClient(true, 0x1, 0x10, Authentication.Low, "00000000", InterfaceType.HDLC);
-        GXDLMSClient client = new GXDLMSClient(true,  0x1, 0x90, Authentication.Low, "00000000", InterfaceType.HDLC);
+        GXDLMSClient client = new GXDLMSClient(true, 0x1, 0x90, Authentication.Low, "00000000", InterfaceType.HDLC);
 
         client.Priority = Priority.Normal;
         client.ServiceClass = ServiceClass.Confirmed;
@@ -24,7 +23,7 @@ internal class Program
         client.Settings.EphemeralBlockCipherKey = [0x7A, 0xDF, 0x63, 0x9C, 0xA7, 0x96, 0x32, 0xFC, 0xA3, 0xD7, 0x81, 0x0B, 0xE6, 0x41, 0x6A, 0xBE];
         client.Settings.EphemeralAuthenticationKey = [0x24, 0x5D, 0x0F, 0x1D, 0xF3, 0x1C, 0x43, 0x80, 0x13, 0x5A, 0xC9, 0x1D, 0x4A, 0x22, 0x02, 0x3D];
         client.NegotiatedConformance = Conformance.GeneralBlockTransfer;
-        //client.HdlcSettings.SenderFrame = 44;
+
         // Initialize GXSerial for serial communication.
         GXSerial media = new GXSerial();
 
@@ -48,7 +47,18 @@ internal class Program
             {
                 // Read and parse the SNRM response from the meter.
                 ReadDLMSPacket(data, reply, client, media);
+
+                Console.WriteLine("SNRMRequest : ");
+                Console.WriteLine(reply.Data.ToString());
+                Console.WriteLine(reply.Data.ToString(true));
+                Console.WriteLine();
+
                 client.ParseUAResponse(reply.Data); // Parse UA response to confirm connection.
+
+                Console.WriteLine("UAResponse : ");
+                Console.WriteLine(reply.Data.ToString());
+                Console.WriteLine(reply.Data.ToString(true));
+                Console.WriteLine();
             }
 
             // Send AARQ request to establish application association.
@@ -59,21 +69,51 @@ internal class Program
 
                 reply.Clear(); // Clear previous reply data.
                 ReadDLMSPacket(it, reply, client, media); // Read AARQ response from the meter.
+
+                Console.WriteLine("AARQRequest : ");
+                Console.WriteLine(reply.Data.ToString());
+                Console.WriteLine(reply.Data.ToString(true));
+                Console.WriteLine();
             }
 
             // Parse the AARQ response to verify application association establishment.
-            string zz = reply.Data.ToHex(true,0);
             client.ParseAAREResponse(reply.Data);
 
+            Console.WriteLine("ParseAAREResponse : ");
+            Console.WriteLine(reply.Data.ToString());
+            Console.WriteLine(reply.Data.ToString(true));
+            Console.WriteLine();
+
+
             // Request and parse objects available in the meter.
-            GXDLMSObjectCollection objects = client.ParseObjects(reply.Data, true);
+            //GXDLMSObjectCollection objects = client.ParseObjects(reply.Data, true);
+
+            GXDLMSData serial = new GXDLMSData("0.0.96.1.0.255"); //Serial number                                        
+            var meterSerial = client.Read(serial, 2);
+
+
+            var zzz = BitConverter.ToString(meterSerial[0]).Replace("-", "");
+
+            reply.Clear();
+
+            ReadDLMSPacket(meterSerial[0], reply, client, media);
+
+            var buff = reply.Data.ToString(true);
+
+            Console.WriteLine("SERIAL : ");
+            Console.WriteLine(reply.Data.ToString());
+            Console.WriteLine(reply.Data.ToString(true));
+            Console.WriteLine();
+
 
             // Disconnect from the meter.
+            client.DisconnectRequest();
             ReadDLMSPacket(client.DisconnectRequest(), reply, client, media);
         }
         finally
         {
             // Ensure the serial port is closed after communication.
+            //ReadDLMSPacket(client.DisconnectRequest(), reply, client, media);
             media.Close();
         }
 
@@ -153,7 +193,7 @@ internal class Program
             // Prepare command to switch to HDLC mode.
             byte controlCharacter = (byte)'2';
             byte ModeControlCharacter = (byte)'2';
-            byte[] arr = [ 0x06, controlCharacter, (byte)baudrate, ModeControlCharacter, 13, 10 ];
+            byte[] arr = [0x06, controlCharacter, (byte)baudrate, ModeControlCharacter, 13, 10];
 
             Console.WriteLine("Switching to HDLC mode: " + BitConverter.ToString(arr));
             media.Send(arr, null);
